@@ -1,27 +1,11 @@
 import os
+import subprocess
+from pyrogram import Client, filters
 
-#create new application in telegram.org
+# Telegram API credentials from environment variables
 api_id = int(os.getenv("uditya_tg_api_id"))
 api_hash = os.getenv("uditya_tg_api_hash")
-# when crete newbot not fatherbot
 bot_token = os.getenv("uditya_tg_bot_token")
-
-import nest_asyncio
-nest_asyncio.apply()
-
-from pyrogram import Client
-
-
-app = Client("my_session", api_id=api_id, api_hash=api_hash)
-
-await app.start()
-
-print("Login successful!")
-
-await app.stop()
-
-from pyrogram import Client, filters
-import subprocess
 
 app = Client("mkv_bot", api_id=api_id, api_hash=api_hash, bot_token=bot_token)
 
@@ -31,14 +15,13 @@ user_files = {}
 def get_audio_tracks(file):
     cmd = ["ffmpeg", "-i", file]
     result = subprocess.run(cmd, stderr=subprocess.PIPE, text=True)
-    
+
     tracks = []
     for line in result.stderr.split("\n"):
         if "Audio:" in line:
             tracks.append(line.strip())
-    
-    return tracks
 
+    return tracks
 
 
 @app.on_message(filters.document)
@@ -54,16 +37,19 @@ async def handle_mkv(client, message):
 
     tracks = get_audio_tracks(path)
 
-    user_files[message.from_user.id] = path
+    user_files[message.from_user.id] = {
+        "path": path,
+        "name": message.document.file_name
+    }
 
     msg = "Audio tracks found:\n\n"
+
     for i, t in enumerate(tracks):
         msg += f"{i} → {t}\n"
 
     msg += "\nSend track number to keep."
 
     await message.reply(msg)
-
 
 
 @app.on_message(filters.text)
@@ -80,8 +66,10 @@ async def select_track(client, message):
 
     track = int(message.text)
 
-    input_file = user_files[user_id]
-    output_file = f'trackremoved_{message.document.file_name}'
+    input_file = user_files[user_id]["path"]
+    original_name = user_files[user_id]["name"]
+
+    output_file = f"processed_{original_name}"
 
     await message.reply("Processing video...")
 
@@ -101,5 +89,6 @@ async def select_track(client, message):
     await message.reply_document(output_file)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+    print("Bot started...")
     app.run()
